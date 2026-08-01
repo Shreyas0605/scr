@@ -110,6 +110,9 @@ std::wstring FlipClock::FormatWeekday(const std::tm& t) const {
 
 void FlipClock::Draw(const D2D1_RECT_F& viewport) {
     if (m_tiles.size() != 6) return;
+
+    m_ctx->SetTransform(D2D1::Matrix3x2F::Identity());
+
     LayoutAndDraw(viewport);
 }
 
