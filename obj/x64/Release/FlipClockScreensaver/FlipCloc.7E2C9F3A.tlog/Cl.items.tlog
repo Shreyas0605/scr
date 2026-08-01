@@ -1,0 +1,13 @@
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\background\BackgroundManager.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\BackgroundManager.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\background\ImageLoader.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\ImageLoader.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\background\VideoBackground.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\VideoBackground.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\clock\FlipClock.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\FlipClock.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\clock\FlipTile.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\FlipTile.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\config\Settings.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\Settings.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\config\Themes.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\Themes.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\core\Application.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\Application.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\core\TimeZoneUtil.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\TimeZoneUtil.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\core\WinMain.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\WinMain.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\core\Window.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\Window.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\graphics\D2DRenderer.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\D2DRenderer.obj
+C:\Users\91994\Downloads\newflip\FlipClockScreensaver\src\settings\SettingsDialog.cpp;C:\Users\91994\Downloads\newflip\FlipClockScreensaver\obj\x64\Release\FlipClockScreensaver\SettingsDialog.obj

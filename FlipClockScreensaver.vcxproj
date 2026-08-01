@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{7E2C9F3A-4B1D-4E6A-9C2F-1A5D8B6E3F70}</ProjectGuid>
+    <RootNamespace>FlipClockScreensaver</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>FlipClockScreensaver</ProjectName>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+
+  <PropertyGroup Label="UserMacros" />
+
+  <!-- Every configuration builds a .scr, not a .exe: Windows identifies
+       screensavers purely by extension, and Explorer's "Install"/"Test"/
+       "Configure" right-click verbs and the Display Settings screensaver
+       picker both only enumerate *.scr in %WINDIR%\System32. -->
+  <PropertyGroup>
+    <TargetExt>.scr</TargetExt>
+    <TargetName>FlipClock</TargetName>
+    <!-- Custom RT_MANIFEST resource (id 1) in FlipClock.rc supplies the
+         process manifest; disabling the linker's own auto-generated
+         manifest avoids a duplicate-resource-ID build error. -->
+    <GenerateManifest>false</GenerateManifest>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;UNICODE;_UNICODE;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;windowscodecs.lib;mf.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;shcore.lib;comctl32.lib;comdlg32.lib;ole32.lib;oleaut32.lib;uuid.lib;shell32.lib;user32.lib;gdi32.lib;advapi32.lib;propsys.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;UNICODE;_UNICODE;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d2d1.lib;dwrite.lib;d3d11.lib;dxgi.lib;windowscodecs.lib;mf.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;shcore.lib;comctl32.lib;comdlg32.lib;ole32.lib;oleaut32.lib;uuid.lib;shell32.lib;user32.lib;gdi32.lib;advapi32.lib;propsys.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\background\BackgroundManager.cpp" />
+    <ClCompile Include="src\background\ImageLoader.cpp" />
+    <ClCompile Include="src\background\VideoBackground.cpp" />
+    <ClCompile Include="src\clock\FlipClock.cpp" />
+    <ClCompile Include="src\clock\FlipTile.cpp" />
+    <ClCompile Include="src\config\Settings.cpp" />
+    <ClCompile Include="src\config\Themes.cpp" />
+    <ClCompile Include="src\core\Application.cpp" />
+    <ClCompile Include="src\core\TimeZoneUtil.cpp" />
+    <ClCompile Include="src\core\WinMain.cpp" />
+    <ClCompile Include="src\core\Window.cpp" />
+    <ClCompile Include="src\graphics\D2DRenderer.cpp" />
+    <ClCompile Include="src\settings\SettingsDialog.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="src\animation\AnimationClock.h" />
+    <ClInclude Include="src\animation\Easing.h" />
+    <ClInclude Include="src\background\BackgroundManager.h" />
+    <ClInclude Include="src\background\ImageLoader.h" />
+    <ClInclude Include="src\background\VideoBackground.h" />
+    <ClInclude Include="src\clock\FlipClock.h" />
+    <ClInclude Include="src\clock\FlipTile.h" />
+    <ClInclude Include="src\config\Settings.h" />
+    <ClInclude Include="src\config\Themes.h" />
+    <ClInclude Include="src\config\json.hpp" />
+    <ClInclude Include="src\core\Application.h" />
+    <ClInclude Include="src\core\TimeZoneUtil.h" />
+    <ClInclude Include="src\core\Window.h" />
+    <ClInclude Include="src\graphics\D2DRenderer.h" />
+    <ClInclude Include="src\settings\SettingsDialog.h" />
+    <ClInclude Include="resources\resource.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="resources\FlipClock.rc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="resources\FlipClock.manifest" />
+    <None Include="assets\icons\app.ico" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

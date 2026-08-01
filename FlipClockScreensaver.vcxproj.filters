@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="core"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000001}</UniqueIdentifier></Filter>
+    <Filter Include="graphics"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000002}</UniqueIdentifier></Filter>
+    <Filter Include="clock"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000003}</UniqueIdentifier></Filter>
+    <Filter Include="background"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000004}</UniqueIdentifier></Filter>
+    <Filter Include="animation"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000005}</UniqueIdentifier></Filter>
+    <Filter Include="config"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000006}</UniqueIdentifier></Filter>
+    <Filter Include="settings"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000007}</UniqueIdentifier></Filter>
+    <Filter Include="resources"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000008}</UniqueIdentifier></Filter>
+    <Filter Include="assets"><UniqueIdentifier>{1a2b3c4d-0001-4a1a-9c1a-000000000009}</UniqueIdentifier></Filter>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\core\Application.cpp"><Filter>core</Filter></ClCompile>
+    <ClCompile Include="src\core\TimeZoneUtil.cpp"><Filter>core</Filter></ClCompile>
+    <ClCompile Include="src\core\WinMain.cpp"><Filter>core</Filter></ClCompile>
+    <ClCompile Include="src\core\Window.cpp"><Filter>core</Filter></ClCompile>
+    <ClCompile Include="src\graphics\D2DRenderer.cpp"><Filter>graphics</Filter></ClCompile>
+    <ClCompile Include="src\clock\FlipClock.cpp"><Filter>clock</Filter></ClCompile>
+    <ClCompile Include="src\clock\FlipTile.cpp"><Filter>clock</Filter></ClCompile>
+    <ClCompile Include="src\background\BackgroundManager.cpp"><Filter>background</Filter></ClCompile>
+    <ClCompile Include="src\background\ImageLoader.cpp"><Filter>background</Filter></ClCompile>
+    <ClCompile Include="src\background\VideoBackground.cpp"><Filter>background</Filter></ClCompile>
+    <ClCompile Include="src\config\Settings.cpp"><Filter>config</Filter></ClCompile>
+    <ClCompile Include="src\config\Themes.cpp"><Filter>config</Filter></ClCompile>
+    <ClCompile Include="src\settings\SettingsDialog.cpp"><Filter>settings</Filter></ClCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="src\core\Application.h"><Filter>core</Filter></ClInclude>
+    <ClInclude Include="src\core\TimeZoneUtil.h"><Filter>core</Filter></ClInclude>
+    <ClInclude Include="src\core\Window.h"><Filter>core</Filter></ClInclude>
+    <ClInclude Include="src\graphics\D2DRenderer.h"><Filter>graphics</Filter></ClInclude>
+    <ClInclude Include="src\clock\FlipClock.h"><Filter>clock</Filter></ClInclude>
+    <ClInclude Include="src\clock\FlipTile.h"><Filter>clock</Filter></ClInclude>
+    <ClInclude Include="src\background\BackgroundManager.h"><Filter>background</Filter></ClInclude>
+    <ClInclude Include="src\background\ImageLoader.h"><Filter>background</Filter></ClInclude>
+    <ClInclude Include="src\background\VideoBackground.h"><Filter>background</Filter></ClInclude>
+    <ClInclude Include="src\animation\AnimationClock.h"><Filter>animation</Filter></ClInclude>
+    <ClInclude Include="src\animation\Easing.h"><Filter>animation</Filter></ClInclude>
+    <ClInclude Include="src\config\Settings.h"><Filter>config</Filter></ClInclude>
+    <ClInclude Include="src\config\Themes.h"><Filter>config</Filter></ClInclude>
+    <ClInclude Include="src\config\json.hpp"><Filter>config</Filter></ClInclude>
+    <ClInclude Include="src\settings\SettingsDialog.h"><Filter>settings</Filter></ClInclude>
+    <ClInclude Include="resources\resource.h"><Filter>resources</Filter></ClInclude>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="resources\FlipClock.rc"><Filter>resources</Filter></ResourceCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="resources\FlipClock.manifest"><Filter>resources</Filter></None>
+    <None Include="assets\icons\app.ico"><Filter>assets</Filter></None>
+  </ItemGroup>
+</Project>
