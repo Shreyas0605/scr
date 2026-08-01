@@ -275,9 +275,12 @@ void Application::RenderFrame(MonitorSurface& surface) {
     surface.background->Update();
 
     surface.renderer->BeginDraw();
-    const D2D1_SIZE_F logicalSize = surface.renderer->Context()->GetSize();
     const D2D1_RECT_F viewport =
-        D2D1::RectF(0, 0, logicalSize.width, logicalSize.height);
+    D2D1::RectF(
+        0.0f,
+        0.0f,
+        static_cast<float>(surface.renderer->Width()),
+        static_cast<float>(surface.renderer->Height()));
     surface.background->Draw(viewport);
     surface.clock->Draw(viewport);
     surface.renderer->EndDraw(m_settings.performance.vsync);
