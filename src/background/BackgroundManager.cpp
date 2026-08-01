@@ -68,7 +68,10 @@ void BackgroundManager::ReloadImage() {
         m_imageBitmap.Reset();
         return;
     }
-    m_imageBitmap = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_settings.imagePath);
+    ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_settings.imagePath);
+    if (loaded) {
+        m_imageBitmap = loaded;
+    }
 }
 
 void BackgroundManager::ReloadSlideshow() {
@@ -99,7 +102,17 @@ void BackgroundManager::ReloadSlideshow() {
         std::sort(m_slideshowFiles.begin(), m_slideshowFiles.end());
     }
 
-    m_slideshowCurrent = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[0]);
+    for (size_t i = 0; i < m_slideshowFiles.size(); ++i) {
+        ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[i]);
+        if (loaded) {
+            m_slideshowIndex = i;
+            m_slideshowCurrent = loaded;
+            break;
+        }
+    }
+    if (!m_slideshowCurrent) {
+        m_slideshowFiles.clear();
+    }
 }
 
 void BackgroundManager::ReloadVideo() {
@@ -116,7 +129,9 @@ void BackgroundManager::AdvanceSlideshow() {
     if (m_slideshowCrossfading) {
         m_crossfadeElapsed += dt;
         if (m_crossfadeElapsed >= m_settings.slideshowCrossfadeSeconds) {
-            m_slideshowCurrent = m_slideshowNext;
+            if (m_slideshowNext) {
+                m_slideshowCurrent = m_slideshowNext;
+            }
             m_slideshowNext.Reset();
             m_slideshowCrossfading = false;
             m_slideshowElapsed = 0.0;
@@ -126,10 +141,18 @@ void BackgroundManager::AdvanceSlideshow() {
 
     m_slideshowElapsed += dt;
     if (m_slideshowElapsed >= m_settings.slideshowIntervalSeconds) {
-        m_slideshowIndex = (m_slideshowIndex + 1) % m_slideshowFiles.size();
-        m_slideshowNext = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[m_slideshowIndex]);
-        m_slideshowCrossfading = true;
-        m_crossfadeElapsed = 0.0;
+        const size_t total = m_slideshowFiles.size();
+        for (size_t attempt = 0; attempt < total; ++attempt) {
+            const size_t candidate = (m_slideshowIndex + 1 + attempt) % total;
+            ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[candidate]);
+            if (!loaded) continue;
+            m_slideshowIndex = candidate;
+            m_slideshowNext = loaded;
+            m_slideshowCrossfading = true;
+            m_crossfadeElapsed = 0.0;
+            break;
+        }
+        m_slideshowElapsed = 0.0;
     }
 }
 
