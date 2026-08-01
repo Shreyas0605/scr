@@ -186,7 +186,7 @@ LRESULT Application::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     }();
 
     switch (msg) {
-        case WM_SIZE:
+      /*  case WM_SIZE:
             if (surface && surface->renderer && wParam != SIZE_MINIMIZED) {
                 const UINT width = static_cast<UINT>(std::max<LONG>(1, LOWORD(lParam)));
                 const UINT height = static_cast<UINT>(std::max<LONG>(1, HIWORD(lParam)));
@@ -211,7 +211,7 @@ LRESULT Application::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
                                           static_cast<UINT>(std::max<LONG>(1, client.bottom - client.top)));
             }
             handled = true;
-            return 0;
+            return 0;*/
         case WM_MOUSEMOVE: {
             POINT p{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ClientToScreen(hwnd, &p);
