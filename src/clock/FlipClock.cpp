@@ -120,7 +120,10 @@ void FlipClock::LayoutAndDraw(const D2D1_RECT_F& viewport) {
     // Tile sizing: derived from viewport so the clock scales cleanly from
     // 1080p through 8K and ultrawide/portrait without hardcoded pixels.
     const int fieldCount = m_options.showSeconds ? 3 : 2;
-    const float tileH = std::min(viewH * 0.32f, viewW * 0.22f);
+    const float widthFactor =
+        (2.0f * 0.72f + 0.06f) * fieldCount + (0.28f + 2.0f * 0.22f) * (fieldCount - 1);
+    const float maxTileHByWidth = viewW / std::max(widthFactor, 0.001f);
+    const float tileH = std::min(viewH * 0.32f, maxTileHByWidth);
     const float tileW = tileH * 0.72f;
     const float tileGapWithinField = tileH * 0.06f;
     const float colonWidth = tileH * 0.28f;
