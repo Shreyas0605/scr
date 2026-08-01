@@ -176,6 +176,7 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
 
     D2D1_RECT_F destRect = viewport;
     D2D1_RECT_F srcRect = D2D1::RectF(0, 0, bmpSize.width, bmpSize.height);
+    bool wouldExposeBorders = false;
 
     switch (scaleMode) {
         case fcs::config::ScaleMode::Stretch: {
@@ -186,6 +187,8 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
             const float x = viewport.left + (viewW - bmpSize.width) * 0.5f;
             const float y = viewport.top + (viewH - bmpSize.height) * 0.5f;
             destRect = D2D1::RectF(x, y, x + bmpSize.width, y + bmpSize.height);
+            wouldExposeBorders = (destRect.left > viewport.left || destRect.top > viewport.top ||
+                                  destRect.right < viewport.right || destRect.bottom < viewport.bottom);
             break;
         }
         case fcs::config::ScaleMode::Tile: {
@@ -217,6 +220,17 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
             destRect = viewport;
             break;
         }
+    }
+
+    // Prevent visible black borders when "Center" is active but the source
+    // image is smaller than the viewport by falling back to a cover draw.
+    if (scaleMode == fcs::config::ScaleMode::Center && wouldExposeBorders) {
+        const float scale = std::max(viewW / bmpSize.width, viewH / bmpSize.height);
+        const float srcW = viewW / scale, srcH = viewH / scale;
+        const float srcX = (bmpSize.width - srcW) * 0.5f;
+        const float srcY = (bmpSize.height - srcH) * 0.5f;
+        srcRect = D2D1::RectF(srcX, srcY, srcX + srcW, srcY + srcH);
+        destRect = viewport;
     }
 
     m_ctx->DrawBitmap(bitmap, destRect, opacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
