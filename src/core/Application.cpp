@@ -178,7 +178,40 @@ LRESULT Application::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         return 0;
     }
 
+    auto* surface = [&]() -> MonitorSurface* {
+        for (auto& s : m_surfaces) {
+            if (s && s->window && s->window->Handle() == hwnd) return s.get();
+        }
+        return nullptr;
+    }();
+
     switch (msg) {
+        case WM_SIZE:
+            if (surface && surface->renderer && wParam != SIZE_MINIMIZED) {
+                const UINT width = static_cast<UINT>(std::max<LONG>(1, LOWORD(lParam)));
+                const UINT height = static_cast<UINT>(std::max<LONG>(1, HIWORD(lParam)));
+                surface->renderer->Resize(width, height);
+            }
+            handled = true;
+            return 0;
+        case WM_DPICHANGED:
+            if (surface && surface->renderer) {
+                const float newDpi = static_cast<float>(LOWORD(wParam));
+                surface->renderer->SetDpi(newDpi > 0.0f ? newDpi : 96.0f);
+
+                if ((GetWindowLongW(hwnd, GWL_STYLE) & WS_CHILD) == 0 && lParam) {
+                    const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
+                    SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                                 suggested->right - suggested->left, suggested->bottom - suggested->top,
+                                 SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+
+                const RECT client = surface->window->ClientRect();
+                surface->renderer->Resize(static_cast<UINT>(std::max<LONG>(1, client.right - client.left)),
+                                          static_cast<UINT>(std::max<LONG>(1, client.bottom - client.top)));
+            }
+            handled = true;
+            return 0;
         case WM_MOUSEMOVE: {
             POINT p{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ClientToScreen(hwnd, &p);
