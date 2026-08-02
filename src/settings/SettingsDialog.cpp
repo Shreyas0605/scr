@@ -3,7 +3,6 @@
 #include "../core/TimeZoneUtil.h"
 #include "../../resources/resource.h"
 #include <commctrl.h>
-#include <commdlg.h>
 #include <shlobj.h>
 #include <shellapi.h>
 #include <windowsx.h>
@@ -529,7 +528,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_COMMAND: {
             if (!state) break;
             const int id = LOWORD(wParam);
-            const int notifyCode = HIWORD(wParam);
 
             if (id == IDC_BG_IMAGE_BROWSE || id == IDC_BG_VIDEO_BROWSE) {
                 wchar_t file[MAX_PATH] = L"";
