@@ -6,8 +6,7 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
-using fcs::animation::Easing;
-using fcs::animation::AnimationClock;
+using namespace fcs::animation; // brings the Easing namespace + AnimationClock into scope
 
 namespace fcs::background {
 
