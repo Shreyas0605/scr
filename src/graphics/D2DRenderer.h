@@ -66,6 +66,18 @@ public:
     UINT Height() const { return m_height; }
     float Dpi() const { return m_dpi; }
 
+    // Logical (DIP) size of the render target, for building the viewport
+    // rect passed to Draw() calls. Direct2D coordinates are always DIPs,
+    // not pixels - Width()/Height() are the swap chain's *pixel* dimensions
+    // and must never be fed directly into a D2D1_RECT_F when the context's
+    // DPI (SetDpi(), driven by the monitor's actual scale factor) isn't
+    // exactly 96. Using ID2D1DeviceContext::GetSize() here (rather than
+    // manually computing m_width * 96.0f / m_dpi) keeps this correct even
+    // through a DPI change, since it reads directly off the bound target.
+    D2D1_SIZE_F LogicalSize() const {
+        return m_d2dContext ? m_d2dContext->GetSize() : D2D1::SizeF(0.0f, 0.0f);
+    }
+
 private:
     void CreateDeviceIndependentResources();
     void CreateDeviceResources(HWND hwnd);
