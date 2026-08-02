@@ -1,3 +1,9 @@
+// d2d1effects.h (included via BackgroundManager.h) declares CLSID_D2D1GaussianBlur
+// and CLSID_D2D1Brightness as `extern const GUID` - no .lib provides storage for
+// them. Defining INITGUID before the include causes DEFINE_GUID to actually
+// instantiate them here instead. This is the only translation unit that
+// references these two CLSIDs, so there's no duplicate-definition risk.
+#define INITGUID
 #include "BackgroundManager.h"
 #include "ImageLoader.h"
 #include "../animation/Easing.h"
