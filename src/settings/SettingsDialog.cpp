@@ -3,6 +3,7 @@
 #include "../core/TimeZoneUtil.h"
 #include "../../resources/resource.h"
 #include <commctrl.h>
+#include <commdlg.h>
 #include <shlobj.h>
 #include <shellapi.h>
 #include <windowsx.h>
