@@ -1,4 +1,3 @@
-#define INITGUID
 #include "BackgroundManager.h"
 #include "ImageLoader.h"
 #include "../animation/Easing.h"
@@ -7,7 +6,7 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
-namespace Easing = fcs::animation::Easing;
+using fcs::animation::Easing;
 using fcs::animation::AnimationClock;
 
 namespace fcs::background {
@@ -68,10 +67,7 @@ void BackgroundManager::ReloadImage() {
         m_imageBitmap.Reset();
         return;
     }
-    ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_settings.imagePath);
-    if (loaded) {
-        m_imageBitmap = loaded;
-    }
+    m_imageBitmap = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_settings.imagePath);
 }
 
 void BackgroundManager::ReloadSlideshow() {
@@ -102,17 +98,7 @@ void BackgroundManager::ReloadSlideshow() {
         std::sort(m_slideshowFiles.begin(), m_slideshowFiles.end());
     }
 
-    for (size_t i = 0; i < m_slideshowFiles.size(); ++i) {
-        ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[i]);
-        if (loaded) {
-            m_slideshowIndex = i;
-            m_slideshowCurrent = loaded;
-            break;
-        }
-    }
-    if (!m_slideshowCurrent) {
-        m_slideshowFiles.clear();
-    }
+    m_slideshowCurrent = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[0]);
 }
 
 void BackgroundManager::ReloadVideo() {
@@ -129,9 +115,7 @@ void BackgroundManager::AdvanceSlideshow() {
     if (m_slideshowCrossfading) {
         m_crossfadeElapsed += dt;
         if (m_crossfadeElapsed >= m_settings.slideshowCrossfadeSeconds) {
-            if (m_slideshowNext) {
-                m_slideshowCurrent = m_slideshowNext;
-            }
+            m_slideshowCurrent = m_slideshowNext;
             m_slideshowNext.Reset();
             m_slideshowCrossfading = false;
             m_slideshowElapsed = 0.0;
@@ -141,18 +125,10 @@ void BackgroundManager::AdvanceSlideshow() {
 
     m_slideshowElapsed += dt;
     if (m_slideshowElapsed >= m_settings.slideshowIntervalSeconds) {
-        const size_t total = m_slideshowFiles.size();
-        for (size_t attempt = 0; attempt < total; ++attempt) {
-            const size_t candidate = (m_slideshowIndex + 1 + attempt) % total;
-            ComPtr<ID2D1Bitmap1> loaded = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[candidate]);
-            if (!loaded) continue;
-            m_slideshowIndex = candidate;
-            m_slideshowNext = loaded;
-            m_slideshowCrossfading = true;
-            m_crossfadeElapsed = 0.0;
-            break;
-        }
-        m_slideshowElapsed = 0.0;
+        m_slideshowIndex = (m_slideshowIndex + 1) % m_slideshowFiles.size();
+        m_slideshowNext = ImageLoader::LoadToBitmap(m_wic, m_ctx, m_slideshowFiles[m_slideshowIndex]);
+        m_slideshowCrossfading = true;
+        m_crossfadeElapsed = 0.0;
     }
 }
 
@@ -176,7 +152,6 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
 
     D2D1_RECT_F destRect = viewport;
     D2D1_RECT_F srcRect = D2D1::RectF(0, 0, bmpSize.width, bmpSize.height);
-    bool wouldExposeBorders = false;
 
     switch (scaleMode) {
         case fcs::config::ScaleMode::Stretch: {
@@ -187,8 +162,6 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
             const float x = viewport.left + (viewW - bmpSize.width) * 0.5f;
             const float y = viewport.top + (viewH - bmpSize.height) * 0.5f;
             destRect = D2D1::RectF(x, y, x + bmpSize.width, y + bmpSize.height);
-            wouldExposeBorders = (destRect.left > viewport.left || destRect.top > viewport.top ||
-                                  destRect.right < viewport.right || destRect.bottom < viewport.bottom);
             break;
         }
         case fcs::config::ScaleMode::Tile: {
@@ -220,17 +193,6 @@ void BackgroundManager::DrawBitmapCover(ID2D1Bitmap1* bitmap, const D2D1_RECT_F&
             destRect = viewport;
             break;
         }
-    }
-
-    // Prevent visible black borders when "Center" is active but the source
-    // image is smaller than the viewport by falling back to a cover draw.
-    if (scaleMode == fcs::config::ScaleMode::Center && wouldExposeBorders) {
-        const float scale = std::max(viewW / bmpSize.width, viewH / bmpSize.height);
-        const float srcW = viewW / scale, srcH = viewH / scale;
-        const float srcX = (bmpSize.width - srcW) * 0.5f;
-        const float srcY = (bmpSize.height - srcH) * 0.5f;
-        srcRect = D2D1::RectF(srcX, srcY, srcX + srcW, srcY + srcH);
-        destRect = viewport;
     }
 
     m_ctx->DrawBitmap(bitmap, destRect, opacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
@@ -327,11 +289,22 @@ void BackgroundManager::Draw(const D2D1_RECT_F& viewport) {
     // Gaussian blur and/or brightness before compositing to the swap
     // chain. This is genuine GPU pixel-shader blur (D2D1 built-in effect),
     // not a pre-rendered or faked approximation. ---
-    const UINT32 w = static_cast<UINT32>(std::max(1.0f, viewport.right - viewport.left));
-    const UINT32 h = static_cast<UINT32>(std::max(1.0f, viewport.bottom - viewport.top));
+    //
+    // The compose bitmap must be sized in real physical pixels and tagged
+    // with the context's actual DPI - not the viewport's DIP extent used
+    // directly as a pixel count - or drawing into it at the context's
+    // current DPI overflows its actual pixel buffer and clips exactly like
+    // the outer-viewport bug this mirrors (see D2DRenderer::LogicalSize).
+    float dpiX = 96.0f, dpiY = 96.0f;
+    m_ctx->GetDpi(&dpiX, &dpiY);
+    const float viewW = viewport.right - viewport.left;
+    const float viewH = viewport.bottom - viewport.top;
+    const UINT32 w = static_cast<UINT32>(std::max(1.0f, viewW * dpiX / 96.0f));
+    const UINT32 h = static_cast<UINT32>(std::max(1.0f, viewH * dpiY / 96.0f));
 
     D2D1_BITMAP_PROPERTIES1 composeProps = D2D1::BitmapProperties1(
-        D2D1_BITMAP_OPTIONS_TARGET, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE));
+        D2D1_BITMAP_OPTIONS_TARGET, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE),
+        dpiX, dpiY);
     ComPtr<ID2D1Bitmap1> composeTarget;
     if (FAILED(m_ctx->CreateBitmap(D2D1::SizeU(w, h), nullptr, 0, composeProps, &composeTarget)) ||
         !composeTarget) {
@@ -347,7 +320,7 @@ void BackgroundManager::Draw(const D2D1_RECT_F& viewport) {
     ComPtr<ID2D1Image> priorTarget;
     m_ctx->GetTarget(&priorTarget);
     m_ctx->SetTarget(composeTarget.Get());
-    const D2D1_RECT_F localViewport = D2D1::RectF(0, 0, static_cast<float>(w), static_cast<float>(h));
+    const D2D1_RECT_F localViewport = D2D1::RectF(0.0f, 0.0f, viewW, viewH);
     DrawSolid(localViewport);
     if (m_settings.mode == BackgroundMode::Image) {
         DrawBitmapCover(m_imageBitmap.Get(), localViewport, m_settings.imageScaleMode, 1.0f);
