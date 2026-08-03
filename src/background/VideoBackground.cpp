@@ -18,12 +18,19 @@ bool VideoBackground::Open(ID2D1DeviceContext* ctx, const std::wstring& path, bo
     m_muted = muted;
 
     ComPtr<IMFAttributes> attrs;
-    HRESULT hr = MFCreateAttributes(&attrs, 1);
+    HRESULT hr = MFCreateAttributes(&attrs, 2);
     if (FAILED(hr)) return false;
     // Disable audio processing entirely when muted (saves CPU and avoids
     // needing an audio session for a background loop). Video-only stream
     // selection is applied after opening via SetStreamSelection.
     attrs->SetUINT32(MF_LOW_LATENCY, TRUE);
+    // Required for the RGB32 SetCurrentMediaType request below to succeed
+    // on real-world video: most decoders (H.264 in particular) natively
+    // output NV12, and without this flag the Source Reader refuses to
+    // color-convert, so SetCurrentMediaType fails and Open() never
+    // succeeds - the video silently never starts (background stays black)
+    // rather than throwing an obvious error.
+    attrs->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
 
     hr = MFCreateSourceReaderFromURL(path.c_str(), attrs.Get(), &m_reader);
     if (FAILED(hr) || !m_reader) return false;
