@@ -2,6 +2,7 @@
 #include <mfapi.h>
 #include <mferror.h>
 #include <propvarutil.h>
+#include <cstring>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
@@ -101,20 +102,22 @@ void VideoBackground::DecodeLoop() {
         DWORD maxLen = 0, curLen = 0;
         if (FAILED(buffer->Lock(&data, &maxLen, &curLen))) continue;
 
-        if (m_width > 0 && m_height > 0 && m_ctx) {
+        if (m_width > 0 && m_height > 0) {
             const UINT32 stride = m_width * 4;
-            D2D1_BITMAP_PROPERTIES1 props = D2D1::BitmapProperties1(
-                D2D1_BITMAP_OPTIONS_NONE,
-                D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE));
+            const size_t byteCount = static_cast<size_t>(stride) * m_height;
+            const DWORD available = curLen;
 
-            // RGB32 from Media Foundation is bottom-up scanline order by
-            // convention in some codecs' output; MF's RGB32 media type is
-            // defined top-down, so we can copy directly without flipping.
-            ComPtr<ID2D1Bitmap1> newBitmap;
-            if (SUCCEEDED(m_ctx->CreateBitmap(D2D1::SizeU(m_width, m_height), data, stride, props,
-                                               &newBitmap))) {
+            // Guard against a short buffer (shouldn't happen for RGB32 at
+            // this resolution, but a malformed/truncated source could
+            // produce one) rather than reading past the mapped region.
+            if (available >= byteCount) {
                 std::lock_guard<std::mutex> lock(m_frameMutex);
-                m_currentBitmap = newBitmap;
+                m_pendingPixels.resize(byteCount);
+                memcpy(m_pendingPixels.data(), data, byteCount);
+                m_pendingWidth = m_width;
+                m_pendingHeight = m_height;
+                m_pendingStride = stride;
+                m_hasPendingFrame = true;
             }
         }
 
@@ -127,8 +130,42 @@ void VideoBackground::DecodeLoop() {
 }
 
 ComPtr<ID2D1Bitmap1> VideoBackground::CurrentFrame() {
-    std::lock_guard<std::mutex> lock(m_frameMutex);
     return m_currentBitmap;
+}
+
+void VideoBackground::SyncFrame(ID2D1DeviceContext* ctx) {
+    if (!ctx) return;
+
+    std::vector<BYTE> pixels;
+    UINT32 w = 0, h = 0, stride = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_frameMutex);
+        if (!m_hasPendingFrame) return;
+        pixels.swap(m_pendingPixels);
+        w = m_pendingWidth;
+        h = m_pendingHeight;
+        stride = m_pendingStride;
+        m_hasPendingFrame = false;
+    }
+    if (pixels.empty() || w == 0 || h == 0) return;
+
+    // Reuse the existing bitmap (just refresh its pixels) whenever the
+    // frame size hasn't changed, rather than allocating a new ID2D1Bitmap1
+    // every single frame - CopyFromMemory is far cheaper than CreateBitmap.
+    if (m_currentBitmap) {
+        D2D1_SIZE_U existing = m_currentBitmap->GetPixelSize();
+        if (existing.width == w && existing.height == h) {
+            const D2D1_RECT_U dest = D2D1::RectU(0, 0, w, h);
+            if (SUCCEEDED(m_currentBitmap->CopyFromMemory(&dest, pixels.data(), stride))) return;
+        }
+    }
+
+    D2D1_BITMAP_PROPERTIES1 props = D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_NONE, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE));
+    ComPtr<ID2D1Bitmap1> newBitmap;
+    if (SUCCEEDED(ctx->CreateBitmap(D2D1::SizeU(w, h), pixels.data(), stride, props, &newBitmap))) {
+        m_currentBitmap = newBitmap;
+    }
 }
 
 void VideoBackground::Shutdown() {
@@ -139,8 +176,12 @@ void VideoBackground::Shutdown() {
         m_thread = nullptr;
     }
     m_reader.Reset();
-    std::lock_guard<std::mutex> lock(m_frameMutex);
-    m_currentBitmap.Reset();
+    {
+        std::lock_guard<std::mutex> lock(m_frameMutex);
+        m_pendingPixels.clear();
+        m_hasPendingFrame = false;
+    }
+    m_currentBitmap.Reset(); // only ever touched on the main thread, safe without the lock
 }
 
 } // namespace fcs::background
