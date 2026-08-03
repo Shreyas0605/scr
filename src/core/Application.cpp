@@ -85,7 +85,8 @@ void Application::InitializeSurface(MonitorSurface& surface, HWND hwnd, UINT w, 
                                TileStyleFromSettings(m_settings.theme), ClockOptionsFromSettings(m_settings.clock));
 
     surface.background = std::make_unique<fcs::background::BackgroundManager>();
-    surface.background->Initialize(surface.renderer->Context(), surface.renderer->WicFactory());
+    surface.background->Initialize(surface.renderer->Context(), surface.renderer->WicFactory(),
+                                   surface.renderer->D3DDevice());
     surface.background->ApplySettings(m_settings.background);
 }
 
@@ -233,7 +234,8 @@ void Application::RenderFrame(MonitorSurface& surface) {
         surface.clock->Initialize(surface.renderer->Context(), surface.renderer->DWriteFactory(),
                                    TileStyleFromSettings(m_settings.theme),
                                    ClockOptionsFromSettings(m_settings.clock));
-        surface.background->Initialize(surface.renderer->Context(), surface.renderer->WicFactory());
+        surface.background->Initialize(surface.renderer->Context(), surface.renderer->WicFactory(),
+                                   surface.renderer->D3DDevice());
         surface.background->ApplySettings(m_settings.background);
         return;
     }
