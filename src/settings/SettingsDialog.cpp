@@ -93,6 +93,12 @@ struct DialogState {
     fcs::config::Settings* settings = nullptr;
     fcs::config::Settings working; // edited copy; only committed on OK/Apply
     std::array<std::vector<HWND>, kTabCount> tabControls;
+    // Background sub-groups shown/hidden based on the mode combo
+    // selection: [0]=Image controls, [1]=Slideshow controls, [2]=Video
+    // controls. Solid Color and Animated Gradient need no extra controls
+    // beyond the mode combo itself; Blur/Brightness stay visible for every
+    // mode, so they're not part of any group here.
+    std::array<std::vector<HWND>, 3> bgSubGroups;
     bool dirtyIgnore = false; // suppresses handlers while we're populating controls
 };
 
@@ -216,6 +222,14 @@ void BuildBackgroundTab(DialogState& state, HINSTANCE hInst) {
             slideLabel,  slideFolder,   slideBrowse,   slideShuffle, intervalLabel, intervalEdit,
             videoLabel,  videoPath,     videoBrowse,   videoLoop,    videoMuted,
             blurLabel,   blurSlider,    blurValue,     brightLabel,  brightSlider, brightValue};
+
+    // Group by which mode each control is relevant to, so
+    // UpdateBackgroundModeVisibility() can show only the fields that apply
+    // to the currently-selected mode instead of all of them at once.
+    state.bgSubGroups[0] = {imgLabel, imgPath, imgBrowse, scaleLabel, scaleCombo};
+    state.bgSubGroups[1] = {slideLabel, slideFolder, slideBrowse, slideShuffle, intervalLabel,
+                             intervalEdit};
+    state.bgSubGroups[2] = {videoLabel, videoPath, videoBrowse, videoLoop, videoMuted};
 }
 
 void BuildClockTab(DialogState& state, HINSTANCE hInst) {
@@ -494,6 +508,20 @@ void ShowTab(DialogState& state, int index) {
     }
 }
 
+// Shows only the Image/Slideshow/Video controls relevant to whichever
+// background mode is currently selected (Solid Color and Animated
+// Gradient need none of the three groups); Blur/Brightness stay visible
+// regardless since they apply to every mode.
+void UpdateBackgroundModeVisibility(DialogState& state) {
+    HWND modeCombo = GetDlgItem(state.hwnd, IDC_BG_MODE_COMBO);
+    const int selected = ComboBox_GetCurSel(modeCombo); // 0=Solid,1=Image,2=Slideshow,3=Video,4=Gradient
+    const int imageGroup = 1, slideshowGroup = 2, videoGroup = 3;
+
+    for (HWND h : state.bgSubGroups[0]) ShowWindow(h, selected == imageGroup ? SW_SHOW : SW_HIDE);
+    for (HWND h : state.bgSubGroups[1]) ShowWindow(h, selected == slideshowGroup ? SW_SHOW : SW_HIDE);
+    for (HWND h : state.bgSubGroups[2]) ShowWindow(h, selected == videoGroup ? SW_SHOW : SW_HIDE);
+}
+
 void UpdateSliderLabel(HWND slider, HWND label, const std::wstring& suffix, int offset = 0) {
     const int pos = static_cast<int>(SendMessageW(slider, TBM_GETPOS, 0, 0)) + offset;
     SetWindowTextW(label, (std::to_wstring(pos) + suffix).c_str());
@@ -506,7 +534,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_NOTIFY: {
             auto* nm = reinterpret_cast<NMHDR*>(lParam);
             if (state && nm->hwndFrom == state->tab && nm->code == TCN_SELCHANGE) {
-                ShowTab(*state, TabCtrl_GetCurSel(state->tab));
+                const int newTab = TabCtrl_GetCurSel(state->tab);
+                ShowTab(*state, newTab);
+                if (newTab == 1) UpdateBackgroundModeVisibility(*state); // Background tab
             }
             return 0;
         }
@@ -529,6 +559,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_COMMAND: {
             if (!state) break;
             const int id = LOWORD(wParam);
+            const int notifyCode = HIWORD(wParam);
+
+            if (id == IDC_BG_MODE_COMBO && notifyCode == CBN_SELCHANGE) {
+                UpdateBackgroundModeVisibility(*state);
+                return 0;
+            }
 
             if (id == IDC_BG_IMAGE_BROWSE || id == IDC_BG_VIDEO_BROWSE) {
                 wchar_t file[MAX_PATH] = L"";
@@ -567,6 +603,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                                  MB_YESNO | MB_ICONQUESTION) == IDYES) {
                     state->working = fcs::config::Settings::Default();
                     PopulateControls(*state);
+                    UpdateBackgroundModeVisibility(*state);
                 }
                 return 0;
             }
@@ -682,6 +719,7 @@ void ShowSettingsDialog(HINSTANCE hInstance, HWND parentHwnd, fcs::config::Setti
     SetFontRecursive(applyBtn, uiFont);
 
     PopulateControls(state);
+    UpdateBackgroundModeVisibility(state);
     TabCtrl_SetCurSel(state.tab, 0);
     ShowTab(state, 0);
 
