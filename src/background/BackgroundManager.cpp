@@ -142,6 +142,10 @@ void BackgroundManager::Update() {
     if (m_needsSlideshowReload) ReloadSlideshow();
     if (m_needsVideoReload) ReloadVideo();
 
+    if (m_settings.mode == fcs::config::BackgroundMode::Video) {
+        m_video->SyncFrame(m_ctx);
+    }
+
     if (m_settings.mode == fcs::config::BackgroundMode::Slideshow) {
         AdvanceSlideshow();
     }
