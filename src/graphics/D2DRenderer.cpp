@@ -1,5 +1,4 @@
 #include "D2DRenderer.h"
-#include <d3d11_4.h>
 #include <dxgi1_3.h>
 
 namespace fcs::graphics {
@@ -46,7 +45,13 @@ void D2DRenderer::CreateDeviceIndependentResources() {
 }
 
 void D2DRenderer::CreateDeviceResources(HWND hwnd) {
-    UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    // VIDEO_SUPPORT is required for this device to be usable for DXVA
+    // hardware-accelerated video decode via Media Foundation's D3D11
+    // device manager (see VideoBackground::Open) - without it, Media
+    // Foundation falls back to pure software decode for every video,
+    // which can't keep up in real time for anything beyond low
+    // resolution/bitrate footage.
+    UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
 #if defined(_DEBUG)
     creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
