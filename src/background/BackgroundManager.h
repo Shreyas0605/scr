@@ -1,7 +1,6 @@
 #pragma once
 #include <d2d1_1.h>
 #include <d2d1effects.h>
-#include <d3d11.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 #include <vector>
@@ -23,10 +22,7 @@ using Microsoft::WRL::ComPtr;
 // frame rather than a pre-baked approximation.
 class BackgroundManager {
 public:
-    // `d3dDevice` (from D2DRenderer::D3DDevice()) is passed through to
-    // VideoBackground so it can attempt hardware-accelerated video decode;
-    // see VideoBackground::Open for the fallback behavior if that fails.
-    void Initialize(ID2D1DeviceContext* ctx, IWICImagingFactory* wic, ID3D11Device* d3dDevice);
+    void Initialize(ID2D1DeviceContext* ctx, IWICImagingFactory* wic);
 
     // Applies new settings; triggers reload of image/slideshow/video
     // resources if the relevant paths/mode changed.
@@ -53,7 +49,6 @@ private:
 
     ID2D1DeviceContext* m_ctx = nullptr;
     IWICImagingFactory* m_wic = nullptr;
-    ID3D11Device* m_d3dDevice = nullptr;
 
     fcs::config::BackgroundSettings m_settings;
     bool m_needsImageReload = false;
