@@ -81,7 +81,7 @@ bool VideoBackground::Open(ID2D1DeviceContext* ctx, ID3D11Device* d3dDevice, con
     hr = MFCreateMediaType(&outputType);
     if (FAILED(hr)) return false;
     outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-    outputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32);
+    outputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
     hr = m_reader->SetCurrentMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM),
                                         nullptr, outputType.Get());
     if (FAILED(hr) && m_hardwareDecodeAvailable) {
@@ -194,7 +194,7 @@ void VideoBackground::DecodeLoop() {
         bool handledOnGpu = false;
 
         // --- Try the hardware (GPU-to-GPU) path first ---
-        if (m_hardwareDecodeAvailable && m_d3dContext) {
+        if (m_hardwareDecodeAvailable && !m_hardwarePathFailed && m_d3dContext) {
             ComPtr<IMFDXGIBuffer> dxgiBuffer;
             if (SUCCEEDED(buffer.As(&dxgiBuffer)) && dxgiBuffer) {
                 ComPtr<ID3D11Texture2D> srcTex;
@@ -289,6 +289,12 @@ void VideoBackground::SyncFrame(ID2D1DeviceContext* ctx) {
                 return;
             }
         }
+        // Wrapping the GPU frame failed (unsupported format on this
+        // hardware/driver, etc.) - stop attempting the hardware path
+        // entirely rather than repeating this failure every frame while
+        // showing nothing. The decode thread checks this flag and will
+        // switch to the CPU pixel path (below) on its next iteration.
+        m_hardwarePathFailed = true;
     }
 
     // --- Software fallback path ---
@@ -339,6 +345,7 @@ void VideoBackground::Shutdown() {
     m_d3dContext.Reset();
     m_d3dDevice.Reset();
     m_hardwareDecodeAvailable = false;
+    m_hardwarePathFailed = false;
     {
         std::lock_guard<std::mutex> lock(m_frameMutex);
         m_pendingPixels.clear();
