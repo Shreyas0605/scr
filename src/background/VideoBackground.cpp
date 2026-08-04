@@ -4,11 +4,13 @@
 #include <propvarutil.h>
 #include <cstring>
 #include <chrono>
+#include <timeapi.h>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
 #pragma comment(lib, "propsys.lib")
+#pragma comment(lib, "winmm.lib")
 
 namespace fcs::background {
 
@@ -67,6 +69,15 @@ bool VideoBackground::Open(ID2D1DeviceContext* ctx, const std::wstring& path, bo
 
     m_stopRequested = false;
     m_thread = CreateThread(nullptr, 0, &VideoBackground::DecodeThreadProc, this, 0, nullptr);
+    if (m_thread) {
+        // Video decode is latency-sensitive: if this thread gets starved by
+        // normal scheduling under system load, decoded frames arrive late
+        // and playback visibly falls behind/stutters. ABOVE_NORMAL is a
+        // standard, conservative bump for real-time media threads - high
+        // enough to avoid starvation, not so high it fights the render
+        // thread or the rest of the system.
+        SetThreadPriority(m_thread, THREAD_PRIORITY_ABOVE_NORMAL);
+    }
     return m_thread != nullptr;
 }
 
@@ -79,6 +90,14 @@ DWORD WINAPI VideoBackground::DecodeThreadProc(LPVOID param) {
 
 void VideoBackground::DecodeLoop() {
     using Clock = std::chrono::steady_clock;
+
+    // Windows' default timer resolution (~15.6ms) makes Sleep() far less
+    // precise than the frame intervals we're trying to pace to (e.g.
+    // ~33ms for 30fps) - raising it to 1ms here is the standard technique
+    // used by games/media players for exactly this reason. Restored to
+    // whatever it was before on every exit path (all breaks below fall
+    // through to just after the loop).
+    timeBeginPeriod(1);
 
     while (!m_stopRequested) {
         const auto iterationStart = Clock::now();
@@ -121,9 +140,21 @@ void VideoBackground::DecodeLoop() {
                     // source could produce one) rather than reading past
                     // the mapped region.
                     if (curLen >= byteCount) {
+                        // Copy into a local buffer first - this memcpy has
+                        // to happen while the MF buffer is locked, but it
+                        // does NOT need m_frameMutex held for its whole
+                        // duration. Swapping the (already-populated) local
+                        // buffer into m_pendingPixels afterward is O(1),
+                        // so the render thread's SyncFrame() is only ever
+                        // blocked for a pointer swap, not a multi-
+                        // megabyte copy - the previous version held the
+                        // lock for the full memcpy, which could stall the
+                        // render thread mid-frame and show up as stutter.
+                        std::vector<BYTE> localFrame(byteCount);
+                        memcpy(localFrame.data(), data, byteCount);
+
                         std::lock_guard<std::mutex> lock(m_frameMutex);
-                        m_pendingPixels.resize(byteCount);
-                        memcpy(m_pendingPixels.data(), data, byteCount);
+                        m_pendingPixels.swap(localFrame);
                         m_pendingWidth = m_width;
                         m_pendingHeight = m_height;
                         m_pendingStride = stride;
@@ -150,6 +181,8 @@ void VideoBackground::DecodeLoop() {
             if (remaining.count() > 0) Sleep(static_cast<DWORD>(remaining.count()));
         }
     }
+
+    timeEndPeriod(1);
 }
 
 ComPtr<ID2D1Bitmap1> VideoBackground::CurrentFrame() {
