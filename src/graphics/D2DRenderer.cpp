@@ -1,5 +1,14 @@
 #include "D2DRenderer.h"
 #include <dxgi1_3.h>
+// ID3D11Multithread's declaring header has moved around across Windows SDK
+// releases (this file compiled fine against an older SDK build on the
+// GitHub-hosted runner and broke against a newer one with no code change
+// here) - including the full d3d11_1.x chain covers it regardless of
+// exactly which one a given SDK/VS toolset puts it in.
+#include <d3d11_1.h>
+#include <d3d11_2.h>
+#include <d3d11_3.h>
+#include <d3d11_4.h>
 
 namespace fcs::graphics {
 
