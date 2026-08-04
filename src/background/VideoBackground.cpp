@@ -4,6 +4,7 @@
 #include <mfobjects.h>
 #include <propvarutil.h>
 #include <cstring>
+#include <cstdio>
 #include <chrono>
 #include <algorithm>
 #include <timeapi.h>
@@ -15,6 +16,22 @@
 #pragma comment(lib, "winmm.lib")
 
 namespace fcs::background {
+
+namespace {
+// Cheap, always-on diagnostic to Visual Studio's Output window / DebugView.
+// Only fires once per Open() (or again if the format changes mid-stream),
+// so it's safe to leave in. This is what tells you, per video file,
+// whether the 2D-lock path or the fallback path is actually being taken,
+// and what the real pitch vs. assumed stride is - which is exactly what's
+// needed to confirm the root cause below instead of guessing per file.
+void LogFrameGeometry(const wchar_t* path, LONG pitch, UINT32 stride, UINT32 width, UINT32 height,
+                       DWORD curLen) {
+    wchar_t buf[256];
+    swprintf_s(buf, L"[VideoBackground] path=%s pitch=%ld stride=%u dims=%ux%u curLen=%lu\n", path,
+               pitch, stride, width, height, curLen);
+    OutputDebugStringW(buf);
+}
+}  // namespace
 
 bool VideoBackground::Open(ID2D1DeviceContext* ctx, const std::wstring& path, bool loop, bool muted) {
     Shutdown();
@@ -59,15 +76,7 @@ bool VideoBackground::Open(ID2D1DeviceContext* ctx, const std::wstring& path, bo
         return false; // no compatible decoder for this codec/container at all
     }
 
-    ComPtr<IMFMediaType> actualType;
-    m_reader->GetCurrentMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), &actualType);
-    if (actualType) {
-        MFGetAttributeSize(actualType.Get(), MF_MT_FRAME_SIZE, &m_width, &m_height);
-        UINT32 num = 30, den = 1;
-        if (SUCCEEDED(MFGetAttributeRatio(actualType.Get(), MF_MT_FRAME_RATE, &num, &den)) && num > 0) {
-            m_frameDuration100ns = static_cast<LONGLONG>(10'000'000.0 * den / num);
-        }
-    }
+    RefreshFormatFromReader();
 
     m_stopRequested = false;
     m_thread = CreateThread(nullptr, 0, &VideoBackground::DecodeThreadProc, this, 0, nullptr);
@@ -81,6 +90,30 @@ bool VideoBackground::Open(ID2D1DeviceContext* ctx, const std::wstring& path, bo
         SetThreadPriority(m_thread, THREAD_PRIORITY_ABOVE_NORMAL);
     }
     return m_thread != nullptr;
+}
+
+void VideoBackground::RefreshFormatFromReader() {
+    ComPtr<IMFMediaType> actualType;
+    m_reader->GetCurrentMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), &actualType);
+    if (!actualType) return;
+
+    MFGetAttributeSize(actualType.Get(), MF_MT_FRAME_SIZE, &m_width, &m_height);
+    UINT32 num = 30, den = 1;
+    if (SUCCEEDED(MFGetAttributeRatio(actualType.Get(), MF_MT_FRAME_RATE, &num, &den)) && num > 0) {
+        m_frameDuration100ns = static_cast<LONGLONG>(10'000'000.0 * den / num);
+    }
+
+    // Confirms the negotiated subtype really is RGB32. If some codec/MFT
+    // combination "succeeds" SetCurrentMediaType but actually hands back
+    // something else (a handful of hardware decoders do this), every byte
+    // downstream is being reinterpreted as the wrong pixel format, which
+    // produces exactly the shredded/duplicated look being chased here.
+    GUID subtype = GUID_NULL;
+    actualType->GetGUID(MF_MT_SUBTYPE, &subtype);
+    if (subtype != MFVideoFormat_RGB32) {
+        OutputDebugStringW(L"[VideoBackground] WARNING: negotiated subtype is not RGB32 - "
+                            L"decoder did not honor the requested output format\n");
+    }
 }
 
 DWORD WINAPI VideoBackground::DecodeThreadProc(LPVOID param) {
@@ -100,6 +133,8 @@ void VideoBackground::DecodeLoop() {
     // whatever it was before on every exit path (all breaks below fall
     // through to just after the loop).
     timeBeginPeriod(1);
+
+    bool loggedGeometry = false;
 
     while (!m_stopRequested) {
         const auto iterationStart = Clock::now();
@@ -121,6 +156,21 @@ void VideoBackground::DecodeLoop() {
             m_reader->SetCurrentPosition(GUID_NULL, var);
             PropVariantClear(&var);
             continue;
+        }
+
+        // Media Foundation is free to renegotiate the stream's geometry
+        // mid-playback (some containers/encoders trigger this even though
+        // the file "looks" constant-format). m_width/m_height/frame
+        // duration were only ever captured once, at Open() - if this flag
+        // is ever set and ignored, every frame after it is decoded at the
+        // NEW size while we keep computing stride/byteCount/localFrame
+        // from the OLD size. That mismatch is exactly the kind of bug
+        // that shows up as a sheared or duplicated frame, because the
+        // copy loop below walks the wrong number of rows at the wrong
+        // row length.
+        if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED) {
+            RefreshFormatFromReader();
+            loggedGeometry = false; // force a fresh geometry log at the new size
         }
 
         if (!sample) {
@@ -167,24 +217,48 @@ void VideoBackground::DecodeLoop() {
                     }
                     buffer2D->Unlock2D();
                     copied = true;
+
+                    if (!loggedGeometry) {
+                        LogFrameGeometry(L"2D", pitch, stride, m_width, m_height, 0);
+                        loggedGeometry = true;
+                    }
                 }
             }
 
-            // Last-resort fallback for a buffer type that doesn't support
-            // IMF2DBuffer at all: assumes zero row padding, matching the
-            // original (buggy-on-some-sources) behavior. Kept only so
-            // playback doesn't stop outright on an exotic buffer type;
-            // the path above should handle virtually everything in
-            // practice.
+            // Fallback for a buffer type that doesn't support IMF2DBuffer.
+            // ROOT CAUSE: this used to blind-memcpy the whole buffer,
+            // assuming curLen == byteCount with zero row padding. That
+            // assumption is false for exactly the same reason the 2D path
+            // above needs pitch-correction - a linear buffer can still be
+            // padded to an alignment boundary per row. Whenever this
+            // branch was the one actually taken (buffer.As<IMF2DBuffer>
+            // failing is common for some hardware-decoder/output-type
+            // combinations), the "fix" above never even ran, and the
+            // original sheared/duplicated-frame bug reproduced exactly as
+            // before. Fix: derive the real per-row byte count from the
+            // buffer's own reported length (curLen / height) instead of
+            // assuming it equals width*4, and copy row-by-row like the 2D
+            // path does.
             if (!copied) {
                 BYTE* data = nullptr;
                 DWORD maxLen = 0, curLen = 0;
                 if (SUCCEEDED(buffer->Lock(&data, &maxLen, &curLen))) {
                     if (curLen >= byteCount) {
-                        memcpy(localFrame.data(), data, byteCount);
+                        const size_t srcPitch = curLen / m_height;
+                        const size_t rowBytes = std::min<size_t>(stride, srcPitch);
+                        for (UINT32 y = 0; y < m_height; ++y) {
+                            memcpy(localFrame.data() + static_cast<size_t>(y) * stride,
+                                   data + static_cast<size_t>(y) * srcPitch, rowBytes);
+                        }
                         copied = true;
                     }
                     buffer->Unlock();
+
+                    if (copied && !loggedGeometry) {
+                        LogFrameGeometry(L"fallback", static_cast<LONG>(curLen / m_height), stride,
+                                          m_width, m_height, curLen);
+                        loggedGeometry = true;
+                    }
                 }
             }
 
