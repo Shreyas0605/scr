@@ -136,58 +136,45 @@ void VideoBackground::DecodeLoop() {
             std::vector<BYTE> localFrame(byteCount);
             bool copied = false;
 
-            // Preferred path: IMF2DBuffer2::Copy2DTo copies into our
-            // tightly-packed destination stride, correcting for whatever
-            // the source buffer's actual row pitch is (including padded/
-            // aligned rows and bottom-up/negative-pitch layouts). A plain
-            // 1-D Lock() + memcpy, used previously, silently assumed the
-            // buffer had zero row padding - true only for some
-            // encoders/resolutions, and wrong for others, which is exactly
-            // what produced sheared "moving lines" on one video and a
-            // diagonally-duplicated frame on another: both are the same
-            // wrong-stride bug, just manifesting differently per source.
-            ComPtr<IMF2DBuffer2> buffer2D2;
-            if (SUCCEEDED(buffer.As(&buffer2D2)) && buffer2D2) {
-                if (SUCCEEDED(buffer2D2->Copy2DTo(localFrame.data(), static_cast<LONG>(stride),
-                                                   static_cast<DWORD>(byteCount)))) {
+            // Preferred path: IMF2DBuffer::Lock2D gives the buffer's
+            // actual row pitch, which we copy row-by-row into our
+            // tightly-packed destination stride - correcting for whatever
+            // padding/alignment the encoder used, and for bottom-up
+            // (negative-pitch) layouts. A plain 1-D Lock() + memcpy, used
+            // previously, silently assumed the buffer had zero row
+            // padding - true only for some encoders/resolutions, and
+            // wrong for others, which is exactly what produced sheared
+            // "moving lines" on one video and a diagonally-duplicated
+            // frame on another: both are the same wrong-stride bug, just
+            // manifesting differently per source.
+            ComPtr<IMF2DBuffer> buffer2D;
+            if (SUCCEEDED(buffer.As(&buffer2D)) && buffer2D) {
+                BYTE* scanline0 = nullptr;
+                LONG pitch = 0;
+                if (SUCCEEDED(buffer2D->Lock2D(&scanline0, &pitch))) {
+                    const LONG absPitch = pitch < 0 ? -pitch : pitch;
+                    const size_t rowBytes = std::min<size_t>(stride, static_cast<size_t>(absPitch));
+                    for (UINT32 y = 0; y < m_height; ++y) {
+                        // Negative pitch means the data is stored
+                        // bottom-up; walk source rows in reverse while
+                        // still writing the destination top-down.
+                        const BYTE* srcRow =
+                            (pitch < 0)
+                                ? scanline0 + static_cast<ptrdiff_t>(pitch) *
+                                                  static_cast<ptrdiff_t>(m_height - 1 - y)
+                                : scanline0 + static_cast<ptrdiff_t>(pitch) * static_cast<ptrdiff_t>(y);
+                        memcpy(localFrame.data() + static_cast<size_t>(y) * stride, srcRow, rowBytes);
+                    }
+                    buffer2D->Unlock2D();
                     copied = true;
                 }
             }
 
-            // Fallback: manual row-by-row copy via the older IMF2DBuffer
-            // interface, honoring whatever pitch it reports (still correct
-            // for padded/bottom-up buffers, just without Copy2DTo's
-            // convenience).
-            if (!copied) {
-                ComPtr<IMF2DBuffer> buffer2D;
-                if (SUCCEEDED(buffer.As(&buffer2D)) && buffer2D) {
-                    BYTE* scanline0 = nullptr;
-                    LONG pitch = 0;
-                    if (SUCCEEDED(buffer2D->Lock2D(&scanline0, &pitch))) {
-                        const LONG absPitch = pitch < 0 ? -pitch : pitch;
-                        const size_t rowBytes = std::min<size_t>(stride, static_cast<size_t>(absPitch));
-                        for (UINT32 y = 0; y < m_height; ++y) {
-                            // Negative pitch means the data is stored
-                            // bottom-up; walk source rows in reverse while
-                            // still writing the destination top-down.
-                            const BYTE* srcRow =
-                                (pitch < 0)
-                                    ? scanline0 + static_cast<ptrdiff_t>(pitch) *
-                                                      static_cast<ptrdiff_t>(m_height - 1 - y)
-                                    : scanline0 + static_cast<ptrdiff_t>(pitch) * static_cast<ptrdiff_t>(y);
-                            memcpy(localFrame.data() + static_cast<size_t>(y) * stride, srcRow, rowBytes);
-                        }
-                        buffer2D->Unlock2D();
-                        copied = true;
-                    }
-                }
-            }
-
-            // Last-resort fallback for a buffer type that supports
-            // neither 2-D interface: assumes zero row padding, matching
-            // the original (buggy-on-some-sources) behavior. Kept only so
+            // Last-resort fallback for a buffer type that doesn't support
+            // IMF2DBuffer at all: assumes zero row padding, matching the
+            // original (buggy-on-some-sources) behavior. Kept only so
             // playback doesn't stop outright on an exotic buffer type;
-            // the two paths above should handle virtually everything in
+            // the path above should handle virtually everything in
             // practice.
             if (!copied) {
                 BYTE* data = nullptr;
