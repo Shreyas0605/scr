@@ -94,6 +94,7 @@ private:
     ComPtr<IMFDXGIDeviceManager> m_deviceManager;
     UINT m_resetToken = 0;
     bool m_hardwareDecodeAvailable = false;
+    volatile bool m_hardwarePathFailed = false; // set by SyncFrame() if wrapping a GPU frame ever fails
 
     // Double-buffered so the render thread can safely wrap "the other"
     // texture in a D2D bitmap while the decode thread copies the next
