@@ -28,11 +28,9 @@ bool HasImageExtension(const fs::path& p) {
 }
 } // namespace
 
-void BackgroundManager::Initialize(ID2D1DeviceContext* ctx, IWICImagingFactory* wic,
-                                    ID3D11Device* d3dDevice) {
+void BackgroundManager::Initialize(ID2D1DeviceContext* ctx, IWICImagingFactory* wic) {
     m_ctx = ctx;
     m_wic = wic;
-    m_d3dDevice = d3dDevice;
     m_video = std::make_unique<VideoBackground>();
     RebuildEffectChain();
 }
@@ -112,7 +110,7 @@ void BackgroundManager::ReloadVideo() {
     m_needsVideoReload = false;
     m_video->Shutdown();
     if (m_settings.videoPath.empty()) return;
-    m_video->Open(m_ctx, m_d3dDevice, m_settings.videoPath, m_settings.videoLoop, m_settings.videoMuted);
+    m_video->Open(m_ctx, m_settings.videoPath, m_settings.videoLoop, m_settings.videoMuted);
 }
 
 void BackgroundManager::AdvanceSlideshow() {
