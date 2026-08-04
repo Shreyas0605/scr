@@ -1,9 +1,11 @@
 #include "VideoBackground.h"
 #include <mfapi.h>
 #include <mferror.h>
+#include <mfobjects.h>
 #include <propvarutil.h>
 #include <cstring>
 #include <chrono>
+#include <algorithm>
 #include <timeapi.h>
 
 #pragma comment(lib, "mfplat.lib")
@@ -127,41 +129,89 @@ void VideoBackground::DecodeLoop() {
         }
 
         ComPtr<IMFMediaBuffer> buffer;
-        if (SUCCEEDED(sample->ConvertToContiguousBuffer(&buffer)) && buffer) {
-            BYTE* data = nullptr;
-            DWORD maxLen = 0, curLen = 0;
-            if (SUCCEEDED(buffer->Lock(&data, &maxLen, &curLen))) {
-                if (m_width > 0 && m_height > 0) {
-                    const UINT32 stride = m_width * 4;
-                    const size_t byteCount = static_cast<size_t>(stride) * m_height;
+        if (SUCCEEDED(sample->ConvertToContiguousBuffer(&buffer)) && buffer && m_width > 0 &&
+            m_height > 0) {
+            const UINT32 stride = m_width * 4;
+            const size_t byteCount = static_cast<size_t>(stride) * m_height;
+            std::vector<BYTE> localFrame(byteCount);
+            bool copied = false;
 
-                    // Guard against a short buffer (shouldn't happen for
-                    // RGB32 at this resolution, but a malformed/truncated
-                    // source could produce one) rather than reading past
-                    // the mapped region.
-                    if (curLen >= byteCount) {
-                        // Copy into a local buffer first - this memcpy has
-                        // to happen while the MF buffer is locked, but it
-                        // does NOT need m_frameMutex held for its whole
-                        // duration. Swapping the (already-populated) local
-                        // buffer into m_pendingPixels afterward is O(1),
-                        // so the render thread's SyncFrame() is only ever
-                        // blocked for a pointer swap, not a multi-
-                        // megabyte copy - the previous version held the
-                        // lock for the full memcpy, which could stall the
-                        // render thread mid-frame and show up as stutter.
-                        std::vector<BYTE> localFrame(byteCount);
-                        memcpy(localFrame.data(), data, byteCount);
+            // Preferred path: IMF2DBuffer2::Copy2DTo copies into our
+            // tightly-packed destination stride, correcting for whatever
+            // the source buffer's actual row pitch is (including padded/
+            // aligned rows and bottom-up/negative-pitch layouts). A plain
+            // 1-D Lock() + memcpy, used previously, silently assumed the
+            // buffer had zero row padding - true only for some
+            // encoders/resolutions, and wrong for others, which is exactly
+            // what produced sheared "moving lines" on one video and a
+            // diagonally-duplicated frame on another: both are the same
+            // wrong-stride bug, just manifesting differently per source.
+            ComPtr<IMF2DBuffer2> buffer2D2;
+            if (SUCCEEDED(buffer.As(&buffer2D2)) && buffer2D2) {
+                if (SUCCEEDED(buffer2D2->Copy2DTo(localFrame.data(), static_cast<LONG>(stride),
+                                                   static_cast<DWORD>(byteCount)))) {
+                    copied = true;
+                }
+            }
 
-                        std::lock_guard<std::mutex> lock(m_frameMutex);
-                        m_pendingPixels.swap(localFrame);
-                        m_pendingWidth = m_width;
-                        m_pendingHeight = m_height;
-                        m_pendingStride = stride;
-                        m_hasPendingFrame = true;
+            // Fallback: manual row-by-row copy via the older IMF2DBuffer
+            // interface, honoring whatever pitch it reports (still correct
+            // for padded/bottom-up buffers, just without Copy2DTo's
+            // convenience).
+            if (!copied) {
+                ComPtr<IMF2DBuffer> buffer2D;
+                if (SUCCEEDED(buffer.As(&buffer2D)) && buffer2D) {
+                    BYTE* scanline0 = nullptr;
+                    LONG pitch = 0;
+                    if (SUCCEEDED(buffer2D->Lock2D(&scanline0, &pitch))) {
+                        const LONG absPitch = pitch < 0 ? -pitch : pitch;
+                        const size_t rowBytes = std::min<size_t>(stride, static_cast<size_t>(absPitch));
+                        for (UINT32 y = 0; y < m_height; ++y) {
+                            // Negative pitch means the data is stored
+                            // bottom-up; walk source rows in reverse while
+                            // still writing the destination top-down.
+                            const BYTE* srcRow =
+                                (pitch < 0)
+                                    ? scanline0 + static_cast<ptrdiff_t>(pitch) *
+                                                      static_cast<ptrdiff_t>(m_height - 1 - y)
+                                    : scanline0 + static_cast<ptrdiff_t>(pitch) * static_cast<ptrdiff_t>(y);
+                            memcpy(localFrame.data() + static_cast<size_t>(y) * stride, srcRow, rowBytes);
+                        }
+                        buffer2D->Unlock2D();
+                        copied = true;
                     }
                 }
-                buffer->Unlock();
+            }
+
+            // Last-resort fallback for a buffer type that supports
+            // neither 2-D interface: assumes zero row padding, matching
+            // the original (buggy-on-some-sources) behavior. Kept only so
+            // playback doesn't stop outright on an exotic buffer type;
+            // the two paths above should handle virtually everything in
+            // practice.
+            if (!copied) {
+                BYTE* data = nullptr;
+                DWORD maxLen = 0, curLen = 0;
+                if (SUCCEEDED(buffer->Lock(&data, &maxLen, &curLen))) {
+                    if (curLen >= byteCount) {
+                        memcpy(localFrame.data(), data, byteCount);
+                        copied = true;
+                    }
+                    buffer->Unlock();
+                }
+            }
+
+            if (copied) {
+                // Swapping the already-populated local buffer into
+                // m_pendingPixels is O(1), so the render thread's
+                // SyncFrame() is only ever blocked for a pointer swap, not
+                // a multi-megabyte copy.
+                std::lock_guard<std::mutex> lock(m_frameMutex);
+                m_pendingPixels.swap(localFrame);
+                m_pendingWidth = m_width;
+                m_pendingHeight = m_height;
+                m_pendingStride = stride;
+                m_hasPendingFrame = true;
             }
         }
 
