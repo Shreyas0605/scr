@@ -56,6 +56,7 @@ public:
 
 private:
     static DWORD WINAPI DecodeThreadProc(LPVOID param);
+    void RefreshFormatFromReader();
     void DecodeLoop();
 
     ID2D1DeviceContext* m_ctx = nullptr;
